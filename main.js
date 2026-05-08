@@ -73,32 +73,53 @@ for (let i = 0; i < CARD_COUNT; i++) {
   canvas.appendChild(card);
 }
 
-// ── Initial canvas position (centered in viewport) ───────────────────────────
+// ── Lerp helper ──────────────────────────────────────────────────────────────
 
-let canvasX = -(CANVAS_W / 2 - window.innerWidth  / 2);
-let canvasY = -(CANVAS_H / 2 - window.innerHeight / 2);
-canvas.style.transform = `translate(${canvasX}px, ${canvasY}px)`;
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
 
-// ── Drag + inertia ────────────────────────────────────────────────────────────
+const LERP_FACTOR      = 0.07;   // heavy, slow-following feel
+const MOMENTUM_FACTOR  = 12;     // how far the target is projected on release
 
-let isDragging = false;
+// ── Canvas state ─────────────────────────────────────────────────────────────
+
+const initX = -(CANVAS_W / 2 - window.innerWidth  / 2);
+const initY = -(CANVAS_H / 2 - window.innerHeight / 2);
+
+let targetX  = initX;
+let targetY  = initY;
+let currentX = initX;
+let currentY = initY;
+
+// ── Always-running render loop ────────────────────────────────────────────────
+
+function tick() {
+  currentX = lerp(currentX, targetX, LERP_FACTOR);
+  currentY = lerp(currentY, targetY, LERP_FACTOR);
+  canvas.style.transform = `translate(${currentX}px, ${currentY}px)`;
+  requestAnimationFrame(tick);
+}
+tick();
+
+// ── Drag ─────────────────────────────────────────────────────────────────────
+
+let isDragging  = false;
 let startX, startY;
 let lastX, lastY;
 let velX = 0, velY = 0;
 let totalTravel = 0;
-let rafId;
 
 scene.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
   isDragging  = true;
   totalTravel = 0;
-  startX = e.clientX - canvasX;
-  startY = e.clientY - canvasY;
+  startX = e.clientX - targetX;
+  startY = e.clientY - targetY;
   lastX  = e.clientX;
   lastY  = e.clientY;
   velX   = 0;
   velY   = 0;
-  cancelAnimationFrame(rafId);
   scene.classList.add('dragging');
 });
 
@@ -109,9 +130,8 @@ window.addEventListener('mousemove', e => {
   totalTravel += Math.abs(velX) + Math.abs(velY);
   lastX   = e.clientX;
   lastY   = e.clientY;
-  canvasX = e.clientX - startX;
-  canvasY = e.clientY - startY;
-  canvas.style.transform = `translate(${canvasX}px, ${canvasY}px)`;
+  targetX = e.clientX - startX;
+  targetY = e.clientY - startY;
 });
 
 window.addEventListener('mouseup', e => {
@@ -119,46 +139,31 @@ window.addEventListener('mouseup', e => {
   isDragging = false;
   scene.classList.remove('dragging');
 
-  // Click guard — only flip if barely any movement
+  // Click guard — flip only if mouse barely moved
   if (totalTravel < 5) {
     const card = e.target.closest('.card');
     if (card) card.classList.toggle('flipped');
     return;
   }
 
-  applyInertia();
+  // Project target forward — lerp will naturally drift and decelerate toward it
+  targetX += velX * MOMENTUM_FACTOR;
+  targetY += velY * MOMENTUM_FACTOR;
 });
-
-function applyInertia() {
-  const friction = 0.92;
-
-  function step() {
-    velX *= friction;
-    velY *= friction;
-    if (Math.abs(velX) < 0.3 && Math.abs(velY) < 0.3) return;
-    canvasX += velX;
-    canvasY += velY;
-    canvas.style.transform = `translate(${canvasX}px, ${canvasY}px)`;
-    rafId = requestAnimationFrame(step);
-  }
-
-  rafId = requestAnimationFrame(step);
-}
 
 // ── Touch support ────────────────────────────────────────────────────────────
 
-let touchStartX, touchStartY, touchLastX, touchLastY;
+let touchLastX, touchLastY;
 
 scene.addEventListener('touchstart', e => {
   const t = e.touches[0];
   isDragging  = true;
   totalTravel = 0;
-  touchStartX = t.clientX - canvasX;
-  touchStartY = t.clientY - canvasY;
-  touchLastX  = t.clientX;
-  touchLastY  = t.clientY;
+  startX = t.clientX - targetX;
+  startY = t.clientY - targetY;
+  touchLastX = t.clientX;
+  touchLastY = t.clientY;
   velX = velY = 0;
-  cancelAnimationFrame(rafId);
 }, { passive: true });
 
 scene.addEventListener('touchmove', e => {
@@ -167,22 +172,20 @@ scene.addEventListener('touchmove', e => {
   velX = t.clientX - touchLastX;
   velY = t.clientY - touchLastY;
   totalTravel += Math.abs(velX) + Math.abs(velY);
-  touchLastX  = t.clientX;
-  touchLastY  = t.clientY;
-  canvasX = t.clientX - touchStartX;
-  canvasY = t.clientY - touchStartY;
-  canvas.style.transform = `translate(${canvasX}px, ${canvasY}px)`;
+  touchLastX = t.clientX;
+  touchLastY = t.clientY;
+  targetX = t.clientX - startX;
+  targetY = t.clientY - startY;
 }, { passive: true });
 
 scene.addEventListener('touchend', e => {
   isDragging = false;
   if (totalTravel < 5) {
-    const card = e.changedTouches[0] && document.elementFromPoint(
-      e.changedTouches[0].clientX,
-      e.changedTouches[0].clientY
-    )?.closest('.card');
+    const touch = e.changedTouches[0];
+    const card  = touch && document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.card');
     if (card) card.classList.toggle('flipped');
     return;
   }
-  applyInertia();
+  targetX += velX * MOMENTUM_FACTOR;
+  targetY += velY * MOMENTUM_FACTOR;
 });
