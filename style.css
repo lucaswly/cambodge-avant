@@ -4,51 +4,61 @@
   padding: 0;
 }
 
-body {
+html, body {
+  overflow: hidden;
+  height: 100%;
   background-color: #F5F0E8;
   font-family: 'Cormorant Garamond', serif;
   font-weight: 300;
-  min-height: 100vh;
 }
 
-/* ── Header ── */
+/* ── Fixed title ── */
 
-header {
+#title {
+  position: fixed;
+  top: 2rem;
+  left: 0;
+  right: 0;
   text-align: center;
-  padding: 4rem 2rem 2rem;
-}
-
-h1 {
-  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-size: clamp(1.4rem, 3vw, 2.4rem);
   font-weight: 300;
   letter-spacing: 0.12em;
   color: #2a2118;
+  pointer-events: none;
+  z-index: 10;
 }
 
-/* ── Gallery ── */
+/* ── Scene (viewport) ── */
 
-.gallery {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 3rem;
-  padding: 4rem 2rem 6rem;
+#scene {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+}
+
+#scene.dragging {
+  cursor: grabbing;
+}
+
+/* ── Canvas (infinite plane) ── */
+
+#canvas {
+  position: absolute;
+  width: 5000px;
+  height: 3500px;
+  will-change: transform;
 }
 
 /* ── Flip card ── */
 
 .card {
-  width: 280px;
-  height: 380px;
+  position: absolute;
+  width: 220px;
+  height: 300px;
   perspective: 1200px;
   cursor: pointer;
-  transform: rotate(var(--rotate, 0deg)) translate(var(--tx, 0), var(--ty, 0));
-  transition: transform 0.3s ease;
-}
-
-.card:hover {
-  transform: rotate(0deg) translate(0, -6px) scale(1.02);
 }
 
 .card-inner {
@@ -77,9 +87,6 @@ h1 {
 
 .card-front {
   background: #c8c2b8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .photo-placeholder {
@@ -102,7 +109,7 @@ h1 {
 }
 
 .annotation {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 300;
   color: #5a4a38;
   font-style: italic;
