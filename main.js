@@ -4,11 +4,11 @@ const CANVAS_H   = 5000;
 const CARD_W     = 220;
 const CARD_H     = 300;
 
-// Grid: 23 cols × 12 rows = 276 cells. Fill rate: 63/276 ≈ 23% (1 in ~4.4 cells).
-const GRID_COLS = 23;
+// Grid: 20 cols × 12 rows = 240 cells. Fill rate: 63/240 ≈ 26% (1 in ~3.8 cells).
+const GRID_COLS = 20;
 const GRID_ROWS = 12;
-const CELL_W    = CANVAS_W / GRID_COLS; // ≈ 304px
-const CELL_H    = CANVAS_H / GRID_ROWS; // ≈ 417px
+const CELL_W    = CANVAS_W / GRID_COLS; // 350px — cards 130px apart when adjacent
+const CELL_H    = CANVAS_H / GRID_ROWS; // ≈ 417px — cards 117px apart when adjacent
 
 const scene  = document.getElementById('scene');
 const canvas = document.getElementById('canvas');
@@ -27,11 +27,7 @@ function createCard(id) {
   return card;
 }
 
-// ── Placement (island grid) ───────────────────────────────────────────────────
-
-function rand(min, max) {
-  return min + Math.random() * (max - min);
-}
+// ── Placement (sparse single-territory grid) ─────────────────────────────────
 
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -41,43 +37,22 @@ function shuffle(arr) {
   return arr;
 }
 
-// Island zones: each defines a rectangle of grid cells.
-// Only cells inside islands are eligible — everything outside stays empty.
-// c0/c1 = col range (inclusive), r0/r1 = row range (inclusive), count = cards to place.
-// Counts sum to 63.
-const ISLANDS = [
-  { c0: 0,  c1: 4,  r0: 0,  r1: 3,  count: 8  }, // top-left
-  { c0: 18, c1: 22, r0: 0,  r1: 4,  count: 11 }, // top-right
-  { c0: 8,  c1: 13, r0: 4,  r1: 8,  count: 14 }, // center
-  { c0: 0,  c1: 5,  r0: 8,  r1: 11, count: 15 }, // bottom-left
-  { c0: 16, c1: 22, r0: 7,  r1: 11, count: 15 }, // bottom-right
-];
-
 function buildPositions() {
-  const placed = [];
-
-  for (const island of ISLANDS) {
-    // Collect all cells in this island zone, shuffle, then take `count`.
-    const cells = [];
-    for (let r = island.r0; r <= island.r1; r++) {
-      for (let c = island.c0; c <= island.c1; c++) {
-        cells.push({ c, r });
-      }
-    }
-    shuffle(cells);
-
-    for (const { c, r } of cells.slice(0, island.count)) {
-      // Center card within cell, then apply ±20px organic offset.
-      const baseX = c * CELL_W + (CELL_W - CARD_W) / 2;
-      const baseY = r * CELL_H + (CELL_H - CARD_H) / 2;
-      placed.push({
-        x: Math.round(baseX + rand(-20, 20)),
-        y: Math.round(baseY + rand(-20, 20)),
-      });
+  // All 240 cells in one pool — shuffle and keep 63.
+  // Random selection naturally creates varied gaps: adjacent cells = 130px apart,
+  // cells separated by 2-3 empty ones = 480-830px apart.
+  const cells = [];
+  for (let r = 0; r < GRID_ROWS; r++) {
+    for (let c = 0; c < GRID_COLS; c++) {
+      cells.push({ c, r });
     }
   }
+  shuffle(cells);
 
-  return placed;
+  return cells.slice(0, CARD_COUNT).map(({ c, r }) => ({
+    x: Math.round(c * CELL_W + (CELL_W - CARD_W) / 2),
+    y: Math.round(r * CELL_H + (CELL_H - CARD_H) / 2),
+  }));
 }
 
 // ── Init cards ────────────────────────────────────────────────────────────────
