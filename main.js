@@ -114,12 +114,28 @@ let targetY  = initY;
 let currentX = initX;
 let currentY = initY;
 
+// ── 3D card state (declared here so tick() can reference them) ────────────────
+
+let openCardEl    = null;
+let openCardInner = null;
+let openCardOrigin = null;
+let rotX = 0, rotY = 0;
+let rotTargetX = 0, rotTargetY = 0;
+const ROT_LERP = 0.12;
+
 // ── Always-running render loop ────────────────────────────────────────────────
 
 function tick() {
   currentX = lerp(currentX, targetX, LERP_FACTOR);
   currentY = lerp(currentY, targetY, LERP_FACTOR);
   canvas.style.transform = `translate(${currentX}px, ${currentY}px)`;
+
+  if (openCardEl) {
+    rotX = lerp(rotX, rotTargetX, ROT_LERP);
+    rotY = lerp(rotY, rotTargetY, ROT_LERP);
+    gsap.set(openCardInner, { rotateX: rotX, rotateY: rotY });
+  }
+
   requestAnimationFrame(tick);
 }
 tick();
@@ -133,7 +149,7 @@ let velX = 0, velY = 0;
 let totalTravel = 0;
 
 scene.addEventListener('mousedown', e => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || openCardEl) return;
   isDragging  = true;
   totalTravel = 0;
   startX = e.clientX - targetX;
@@ -164,7 +180,7 @@ window.addEventListener('mouseup', e => {
 
   if (totalTravel < 5) {
     const card = e.target.closest('.card');
-    if (card) card.classList.toggle('flipped');
+    if (card) openCard(card);
     return;
   }
 
@@ -206,7 +222,7 @@ scene.addEventListener('touchend', e => {
   if (totalTravel < 5) {
     const touch = e.changedTouches[0];
     const card  = touch && document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.card');
-    if (card) card.classList.toggle('flipped');
+    if (card) openCard(card);
     return;
   }
   targetX += velX * MOMENTUM_FACTOR;
@@ -219,10 +235,140 @@ scene.addEventListener('touchend', e => {
 // smoothing, and the OS already decelerates trackpad deltas on finger lift.
 
 scene.addEventListener('wheel', e => {
-  e.preventDefault();
+  if (openCardEl) { e.preventDefault(); return; }
   // deltaMode 0 = pixels (trackpad), 1 = lines (mouse wheel) → normalize
   const scale = e.deltaMode === 1 ? 20 : 1;
   targetX -= e.deltaX * scale;
   targetY -= e.deltaY * scale;
   clampTarget();
 }, { passive: false });
+
+// ── Card 3D interaction ───────────────────────────────────────────────────────
+
+const ROT_SENSITIVITY = 0.45; // deg per px dragged
+const ROT_MOMENTUM    = 5;    // inertia multiplier on release
+
+let is3DDragging = false;
+let last3DX, last3DY;
+let rotVelX = 0, rotVelY = 0;
+
+function openCard(card) {
+  if (openCardEl) return;
+
+  const rect = card.getBoundingClientRect();
+  openCardOrigin = {
+    rect,
+    parentNode : card.parentNode,
+    left       : card.style.left,
+    top        : card.style.top,
+  };
+
+  // Lift card out of canvas into body, pinned at current screen coords.
+  card.style.position = 'fixed';
+  card.style.left     = '0';
+  card.style.top      = '0';
+  card.style.zIndex   = '100';
+  document.body.appendChild(card);
+
+  // Overlay — click handler attached after open animation to avoid accidental close.
+  const overlay = document.createElement('div');
+  overlay.id = 'card-overlay';
+  document.body.insertBefore(overlay, card);
+  gsap.set(overlay, { opacity: 0 });
+  gsap.to(overlay, { opacity: 1, duration: 0.35 });
+
+  // Target: centered in viewport, scaled to fill ~65% of the smaller dimension.
+  const openScale = Math.min(
+    window.innerWidth  * 0.65 / CARD_W,
+    window.innerHeight * 0.75 / CARD_H
+  );
+  const tx = (window.innerWidth  - CARD_W * openScale) / 2;
+  const ty = (window.innerHeight - CARD_H * openScale) / 2;
+
+  const inner = card.querySelector('.card-inner');
+  gsap.set(card, { x: rect.left, y: rect.top, scale: 1 });
+  gsap.to(card,  { x: tx, y: ty, scale: openScale, duration: 0.75, ease: 'power2.inOut' });
+
+  // 360° Y spin during flight; hand off to tick() rotation on complete.
+  gsap.fromTo(inner,
+    { rotateY: 0 },
+    {
+      rotateY  : 360,
+      duration : 0.75,
+      ease     : 'power2.inOut',
+      onComplete() {
+        gsap.set(inner, { rotateY: 0 });
+        rotX = rotY = rotTargetX = rotTargetY = rotVelX = rotVelY = 0;
+        openCardEl    = card;
+        openCardInner = inner;
+        card.addEventListener('mousedown', on3DDown);
+        overlay.addEventListener('click', closeCard);
+      },
+    }
+  );
+}
+
+function closeCard() {
+  if (!openCardEl) return;
+  is3DDragging = false;
+
+  const card    = openCardEl;
+  const inner   = openCardInner;
+  const origin  = openCardOrigin;
+  const overlay = document.getElementById('card-overlay');
+
+  // Stop tick() from updating rotation — GSAP takes back control.
+  openCardEl = openCardInner = openCardOrigin = null;
+  card.removeEventListener('mousedown', on3DDown);
+
+  gsap.to(inner, { rotateX: 0, rotateY: 0, duration: 0.4, ease: 'power2.inOut' });
+  gsap.to(card, {
+    x        : origin.rect.left,
+    y        : origin.rect.top,
+    scale    : 1,
+    duration : 0.6,
+    ease     : 'power2.inOut',
+    onComplete() {
+      gsap.set(card, { clearProps: 'all' });
+      card.style.left     = origin.left;
+      card.style.top      = origin.top;
+      card.style.position = '';
+      card.style.zIndex   = '';
+      origin.parentNode.appendChild(card);
+    },
+  });
+
+  if (overlay) gsap.to(overlay, { opacity: 0, duration: 0.3, onComplete: () => overlay.remove() });
+}
+
+function on3DDown(e) {
+  e.stopPropagation();
+  is3DDragging = true;
+  last3DX = e.clientX;
+  last3DY = e.clientY;
+  rotVelX = rotVelY = 0;
+}
+
+// 3D drag — window-level so mouse can move freely outside the card.
+window.addEventListener('mousemove', e => {
+  if (!is3DDragging) return;
+  const dx = e.clientX - last3DX;
+  const dy = e.clientY - last3DY;
+  last3DX = e.clientX;
+  last3DY = e.clientY;
+  rotVelY = dx * ROT_SENSITIVITY;
+  rotVelX = -dy * ROT_SENSITIVITY;
+  rotTargetY += rotVelY;
+  rotTargetX += rotVelX;
+});
+
+window.addEventListener('mouseup', () => {
+  if (!is3DDragging) return;
+  is3DDragging = false;
+  rotTargetY += rotVelY * ROT_MOMENTUM;
+  rotTargetX += rotVelX * ROT_MOMENTUM;
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeCard();
+});
