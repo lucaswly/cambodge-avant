@@ -1,8 +1,14 @@
 const CARD_COUNT = 63;
-const CANVAS_W   = 5000;
-const CANVAS_H   = 3500;
+const CANVAS_W   = 7000;
+const CANVAS_H   = 5000;
 const CARD_W     = 220;
 const CARD_H     = 300;
+
+// Grid: 23 cols × 12 rows = 276 cells. Fill rate: 63/276 ≈ 23% (1 in ~4.4 cells).
+const GRID_COLS = 23;
+const GRID_ROWS = 12;
+const CELL_W    = CANVAS_W / GRID_COLS; // ≈ 304px
+const CELL_H    = CANVAS_H / GRID_ROWS; // ≈ 417px
 
 const scene  = document.getElementById('scene');
 const canvas = document.getElementById('canvas');
@@ -21,48 +27,53 @@ function createCard(id) {
   return card;
 }
 
-// ── Placement (editorial scatter) ────────────────────────────────────────────
+// ── Placement (island grid) ───────────────────────────────────────────────────
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
 }
 
-// Each cluster: { cx, cy, rx, ry, count, gap }
-// cx/cy = center, rx/ry = spread radius, gap = min space between card edges.
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Island zones: each defines a rectangle of grid cells.
+// Only cells inside islands are eligible — everything outside stays empty.
+// c0/c1 = col range (inclusive), r0/r1 = row range (inclusive), count = cards to place.
 // Counts sum to 63.
-const CLUSTERS = [
-  { cx: 550,  cy: 500,  rx: 600,  ry: 500, count: 7, gap: 80  }, // dense,       top-left
-  { cx: 4300, cy: 550,  rx: 600,  ry: 500, count: 6, gap: 80  }, // dense,       top-right
-  { cx: 2200, cy: 750,  rx: 1000, ry: 600, count: 9, gap: 160 }, // medium,      top-center
-  { cx: 900,  cy: 2500, rx: 650,  ry: 550, count: 7, gap: 160 }, // medium,      mid-left
-  { cx: 3900, cy: 2200, rx: 750,  ry: 600, count: 8, gap: 160 }, // medium,      mid-right
-  { cx: 2500, cy: 2950, rx: 1100, ry: 450, count: 7, gap: 320 }, // sparse,      bottom-center
-  { cx: 750,  cy: 3100, rx: 500,  ry: 350, count: 5, gap: 240 }, // airy,        bottom-left
-  { cx: 4400, cy: 3100, rx: 450,  ry: 350, count: 4, gap: 240 }, // airy,        bottom-right
-  { cx: 1900, cy: 1750, rx: 1500, ry: 950, count: 5, gap: 500 }, // very sparse, center (large voids)
-  { cx: 3400, cy: 1300, rx: 700,  ry: 550, count: 5, gap: 200 }, // medium,      right-of-center
+const ISLANDS = [
+  { c0: 0,  c1: 4,  r0: 0,  r1: 3,  count: 8  }, // top-left
+  { c0: 18, c1: 22, r0: 0,  r1: 4,  count: 11 }, // top-right
+  { c0: 8,  c1: 13, r0: 4,  r1: 8,  count: 14 }, // center
+  { c0: 0,  c1: 5,  r0: 8,  r1: 11, count: 15 }, // bottom-left
+  { c0: 16, c1: 22, r0: 7,  r1: 11, count: 15 }, // bottom-right
 ];
 
 function buildPositions() {
   const placed = [];
 
-  for (const cl of CLUSTERS) {
-    for (let i = 0; i < cl.count; i++) {
-      let pos, tries = 0;
-      do {
-        pos = {
-          x: Math.max(0, Math.min(CANVAS_W - CARD_W, cl.cx + rand(-cl.rx, cl.rx))),
-          y: Math.max(0, Math.min(CANVAS_H - CARD_H, cl.cy + rand(-cl.ry, cl.ry))),
-        };
-        tries++;
-      } while (
-        tries < 100 &&
-        placed.some(p =>
-          Math.abs(p.x - pos.x) < CARD_W + cl.gap &&
-          Math.abs(p.y - pos.y) < CARD_H + cl.gap
-        )
-      );
-      placed.push({ ...pos, rotate: 0 });
+  for (const island of ISLANDS) {
+    // Collect all cells in this island zone, shuffle, then take `count`.
+    const cells = [];
+    for (let r = island.r0; r <= island.r1; r++) {
+      for (let c = island.c0; c <= island.c1; c++) {
+        cells.push({ c, r });
+      }
+    }
+    shuffle(cells);
+
+    for (const { c, r } of cells.slice(0, island.count)) {
+      // Center card within cell, then apply ±20px organic offset.
+      const baseX = c * CELL_W + (CELL_W - CARD_W) / 2;
+      const baseY = r * CELL_H + (CELL_H - CARD_H) / 2;
+      placed.push({
+        x: Math.round(baseX + rand(-20, 20)),
+        y: Math.round(baseY + rand(-20, 20)),
+      });
     }
   }
 
@@ -74,10 +85,10 @@ function buildPositions() {
 const positions = buildPositions();
 
 for (let i = 0; i < CARD_COUNT; i++) {
-  const card = createCard(i + 1);
+  const card      = createCard(i + 1);
   const { x, y } = positions[i];
-  card.style.left      = `${x}px`;
-  card.style.top       = `${y}px`;
+  card.style.left = `${x}px`;
+  card.style.top  = `${y}px`;
   canvas.appendChild(card);
 }
 
@@ -86,8 +97,8 @@ for (let i = 0; i < CARD_COUNT; i++) {
 const PAD = 300;
 let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
 for (const { x, y } of positions) {
-  if (x < bMinX) bMinX = x;
-  if (y < bMinY) bMinY = y;
+  if (x              < bMinX) bMinX = x;
+  if (y              < bMinY) bMinY = y;
   if (x + CARD_W > bMaxX) bMaxX = x + CARD_W;
   if (y + CARD_H > bMaxY) bMaxY = y + CARD_H;
 }
@@ -96,8 +107,7 @@ const bTop    = bMinY - PAD;
 const bRight  = bMaxX + PAD;
 const bBottom = bMaxY + PAD;
 
-// At minTargetX: content right edge aligns with screen right edge.
-// At maxTargetX: content left edge aligns with screen left edge.
+// At min: content right edge at screen right. At max: content left edge at screen left.
 const minTargetX = window.innerWidth  - bRight;
 const maxTargetX = -bLeft;
 const minTargetY = window.innerHeight - bBottom;
