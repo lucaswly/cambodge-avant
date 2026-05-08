@@ -1,14 +1,16 @@
 const CARD_COUNT = 63;
-const CANVAS_W   = 7000;
-const CANVAS_H   = 5000;
+const CANVAS_W   = 5000;
+const CANVAS_H   = 3600;
 const CARD_W     = 220;
 const CARD_H     = 300;
 
-// Grid: 20 cols × 12 rows = 240 cells. Fill rate: 63/240 ≈ 26% (1 in ~3.8 cells).
-const GRID_COLS = 20;
-const GRID_ROWS = 12;
-const CELL_W    = CANVAS_W / GRID_COLS; // 350px — cards 130px apart when adjacent
-const CELL_H    = CANVAS_H / GRID_ROWS; // ≈ 417px — cards 117px apart when adjacent
+// Grid: 13 cols × 8 rows = 104 cells. Fill rate: 63/104 ≈ 60%.
+// Cell 385×450px → min gap 165px H / 150px V when adjacent.
+// 1 empty cell between = ~550px gap. 2 empty = ~935px (rare at 60% fill).
+const GRID_COLS = 13;
+const GRID_ROWS = 8;
+const CELL_W    = CANVAS_W / GRID_COLS; // ≈ 385px
+const CELL_H    = CANVAS_H / GRID_ROWS; // = 450px
 
 const scene  = document.getElementById('scene');
 const canvas = document.getElementById('canvas');
