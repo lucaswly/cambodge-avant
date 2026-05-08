@@ -1,0 +1,111 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #F5F0E8;
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 300;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+
+header {
+  text-align: center;
+  padding: 4rem 2rem 2rem;
+}
+
+h1 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: #2a2118;
+}
+
+/* ── Gallery ── */
+
+.gallery {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 3rem;
+  padding: 4rem 2rem 6rem;
+}
+
+/* ── Flip card ── */
+
+.card {
+  width: 280px;
+  height: 380px;
+  perspective: 1200px;
+  cursor: pointer;
+  transform: rotate(var(--rotate, 0deg)) translate(var(--tx, 0), var(--ty, 0));
+  transition: transform 0.3s ease;
+}
+
+.card:hover {
+  transform: rotate(0deg) translate(0, -6px) scale(1.02);
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card.flipped .card-inner {
+  transform: rotateY(180deg);
+}
+
+.card-front,
+.card-back {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 2px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Front: photo placeholder ── */
+
+.card-front {
+  background: #c8c2b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #b8b0a4;
+  border-radius: 2px;
+}
+
+/* ── Back: annotation ── */
+
+.card-back {
+  background: #F5F0E8;
+  transform: rotateY(180deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: 1px solid rgba(42, 33, 24, 0.08);
+}
+
+.annotation {
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: #5a4a38;
+  font-style: italic;
+  text-align: center;
+  line-height: 1.7;
+}
