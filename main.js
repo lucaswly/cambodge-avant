@@ -211,3 +211,16 @@ scene.addEventListener('touchend', e => {
   targetY += velY * MOMENTUM_FACTOR;
   clampTarget();
 });
+
+// ── Trackpad (wheel) ──────────────────────────────────────────────────────────
+// deltaX/deltaY are accumulated directly into target — the lerp loop provides
+// smoothing, and the OS already decelerates trackpad deltas on finger lift.
+
+scene.addEventListener('wheel', e => {
+  e.preventDefault();
+  // deltaMode 0 = pixels (trackpad), 1 = lines (mouse wheel) → normalize
+  const scale = e.deltaMode === 1 ? 20 : 1;
+  targetX -= e.deltaX * scale;
+  targetY -= e.deltaY * scale;
+  clampTarget();
+}, { passive: false });
